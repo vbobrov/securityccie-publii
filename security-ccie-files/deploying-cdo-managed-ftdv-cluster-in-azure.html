@@ -1,0 +1,702 @@
+<!DOCTYPE html><html lang="en-gb"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deploying CDO-Managed FTDv Cluster in Azure - security-ccie</title><meta name="description" content="Many companies are shifting their workloads to the cloud and it’s important to deploy a level of segmentation to protect from Internet threats as well as Internal. Cisco has a next-generation firewall that has a perfect fit to handle this requirement. Starting with version 7.3,&amp;hellip;"><meta name="generator" content="Publii Open-Source CMS for Static Site"><link rel="canonical" href="https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-azure.html"><link rel="alternate" type="application/atom+xml" href="https://blogs.securityccie.net/feed.xml" title="security-ccie - RSS"><link rel="alternate" type="application/json" href="https://blogs.securityccie.net/feed.json" title="security-ccie - JSON"><meta property="og:title" content="Deploying CDO-Managed FTDv Cluster in Azure"><meta property="og:site_name" content="security-ccie"><meta property="og:description" content="Many companies are shifting their workloads to the cloud and it’s important to deploy a level of segmentation to protect from Internet threats as well as Internal. Cisco has a next-generation firewall that has a perfect fit to handle this requirement. Starting with version 7.3,&amp;hellip;"><meta property="og:url" content="https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-azure.html"><meta property="og:type" content="article"><link rel="stylesheet" href="https://blogs.securityccie.net/assets/css/style.css?v&#x3D;a0ba884548820066dfadd8416036abba"><script type="application/ld+json">{"@context":"http://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-azure.html"},"headline":"Deploying CDO-Managed FTDv Cluster in Azure","datePublished":"2023-04-26T12:46-04:00","dateModified":"2026-10-01T13:46-04:00","description":"Many companies are shifting their workloads to the cloud and it’s important to deploy a level of segmentation to protect from Internet threats as well as Internal. Cisco has a next-generation firewall that has a perfect fit to handle this requirement. Starting with version 7.3,&hellip;","author":{"@type":"Person","name":"Viktor Bobrov","url":"https://blogs.securityccie.net/authors/viktor-bobrov/"},"publisher":{"@type":"Organization","name":"Viktor Bobrov"}}</script><noscript><style>img[loading] {
+                    opacity: 1;
+                }</style></noscript></head><body class="post-template"><header class="top js-header"><a class="logo" href="https://blogs.securityccie.net/">security-ccie</a></header><main class="post"><article class="content"><div class="hero hero--noimage"><header class="hero__content"><div class="wrapper"><h1>Deploying CDO-Managed FTDv Cluster in Azure</h1><div class="feed__meta content__meta"><a href="https://blogs.securityccie.net/authors/viktor-bobrov/" class="feed__author">Viktor Bobrov</a> <time datetime="2023-04-26T12:46" class="feed__date">April 26, 2023</time></div></div></header></div><div class="entry-wrapper content__entry"><p>Many companies are shifting their workloads to the cloud and it’s important to deploy a level of segmentation to protect from Internet threats as well as Internal.</p><p>Cisco has a next-generation firewall that has a perfect fit to handle this requirement.</p><p>Starting with version 7.3, Secure Firewall Threat Defense (aka FTD) supports clustering capabilities that we’re used to with hardware models in Azure.</p><p>As with hardware models, the members of the cluster utilize CCL link to exchange control and redirected data plane packets. Unlike hardware models, however, the virtual firewalls use VXLAN protocol to exchange data. This is mainly due to cloud environments not providing Layer 2 network capabilities.</p><p>Unlike AWS, we can have a single subnet spanning multiple Zones in Azure, so it is possible to have a single cluster spanning multiple zones in Azure.</p><p>For data plane traffic in Azure, the cluster will integrate with Azure Load Balancer running in Gateway Load Balancing mode. The traffic between Azure Load Balancer and the firewalls is exchanged using VXLAN protocol. There is a single physical interface on the firewall serving as the underlay and two VTEP interfaces with unique VXLAN Segment IDs. One segment is for internal traffic and one segment for Internet-bound traffic. In Azure terminology, this is called <strong>Paired-Proxy Mode</strong>.</p><p>For management of the cluster, we will use Cloud-Delivered Firewall Management Center (cdFMC) which is a part of Cisco’s cloud-based firewall management service named Cisco Defense Orchestrator (CDO).</p><p>Full code for this post is available here: <a href="https://github.com/vbobrov/terraform/tree/main/azure/ftdv-cluster">https://github.com/vbobrov/terraform/tree/main/azure/ftdv-cluster</a></p><p>For additional information see this link: <a href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/cluster/ftdv-cluster-public.html">https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/cluster/ftdv-cluster-public.html</a></p><h2>Topology</h2><p>The following diagram shows the topology used for this post.</p><figure class="wp-block-image size-full"><figure class="wp-image-442"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/topology-2.jpg" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/topology-2-xs.jpg 640w, https://blogs.securityccie.net/media/posts/6/responsive/topology-2-sm.jpg 768w, https://blogs.securityccie.net/media/posts/6/responsive/topology-2-md.jpg 1024w, https://blogs.securityccie.net/media/posts/6/responsive/topology-2-lg.jpg 1366w, https://blogs.securityccie.net/media/posts/6/responsive/topology-2-xl.jpg 1600w, https://blogs.securityccie.net/media/posts/6/responsive/topology-2-2xl.jpg 1920w"></figure></figure><p>Compared to GWLB topology in AWS covered in the previous post, Azure deployment is much simpler.</p><h3>Firewall VNET</h3><p>This Virtual Network holds our two firewalls. Just like the AWS topology, the firewalls have 4 interfaces:</p><ul><li>Management</li><li>Diagnostic (not used)</li><li>Cluster Control Link (CCL)</li><li>Data. Traffic on this interface is encapsulated in VXLAN.</li></ul><h3>Gateway Load Balancer</h3><p>GWLB always runs in Internal mode and is also configured to encapsulate traffic using VXLAN with matching UDP Ports and Segment IDs.</p><p>In this post, we're using default Azure numbers:</p><ul><li>Internal: UDP/10800 and Segment 800</li><li>External: UDP/10801 and Segment 801</li></ul><p>Note that these numbers must match the firewall configuration</p><h3>WWW VNET</h3><p>This network holds 4 Ubuntu servers running Apache web servers with a simple static web page.</p><p>External Azure Load Balancer running in Application mode is used to load balancer TCP/80 traffic to the 4 web servers.</p><h3>Service Chaining</h3><p>Traffic is redirected to GWLB and the firewalls using <strong>Service Chaining.</strong> The WWW load balancer is configured to send its traffic to the GWLB. This forwards the traffic to the firewalls without changes to source and destination IP addresses or ports.</p><h3>Traffic Flow</h3><p>Microsoft has number of write ups about Gateway Load Balancing. This is one of the links: <a href="https://learn.microsoft.com/en-us/azure/load-balancer/gateway-overview">https://learn.microsoft.com/en-us/azure/load-balancer/gateway-overview</a>.</p><p>The following diagram is taken from the page above</p><figure class="wp-block-image size-large"><figure class="wp-image-444"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-28-1024x647.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-28-1024x647-2xl.png 1920w"></figure></figure><ol><li>Traffic from the Internet arrives at the WWW Load Balancer.</li><li>Traffic transparently redirected to GWLB</li><li>GWLB forwards it to one of the firewalls</li><li>After inspecting the traffic through the security policy, the traffic is returned to GWLB</li><li>Traffic is returned to the WWW Load Balancer and is forwarded to one of the web servers.</li></ol><h2>Firewall Bootstrap</h2><p>Unlike AWS, Azure has two virtual machine properties where we can feed configuration data:<strong> User Data</strong> and <strong>Custom Data.</strong> FTDV utilizes <strong>Custom Data</strong>.</p><p>This is an example custom data.</p><p>CclSubnetRange defines the range of subnet where firewall CCL links are connected. The firewalls discover each other on this range.</p><p>HealthProbePort define the port on which the firewall will start a TCP listener that is used by GWLB to probe the firewall of up status.</p><p>There are also additional options to specify Azure load balancer specific parameters.</p><p>This simplified configuration gets converted into ASA configuration when the firewall boots up for the first time. It is also possible to directly specify CLI commands that the firewall will boot with. See an example here: <a href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/cluster/ftdv-cluster-public.html#Cisco_Concept.dita_0bbab4ab-2fed-4505-91c3-3ee6c43bb334">https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/cluster/ftdv-cluster-public.html#Cisco_Concept.dita_0bbab4ab-2fed-4505-91c3-3ee6c43bb334</a></p><pre class="wp-block-code has-small-font-size"><code>  {
+    "AdminPassword": "password",
+    "Hostname": "ftd-1",
+    "FirewallMode": "Routed",
+    "ManageLocally": "No",
+    "Cluster": {
+      "CclSubnetRange": "10.1.1.1 10.1.1.16",
+      "ClusterGroupName": "lab_cluster_1",
+      "HealthProbePort": "12345"
+        "GatewayLoadBalancerIP": "1.2.3.4",
+        "EncapsulationType": "vxlan",
+        "InternalPort": "10800",
+        "ExternalPort": "10801",
+        "InternalSegId": "800",
+        "ExternalSegId": "801"
+    }
+  }</code></pre><h3>SSH Access - admin</h3><p>When logging in with this account, we enter into the CLISH shell of Secure Firewall. Unlike AWS, ssh public key is not copied to this user and password is the only way to authenticate with this account after provisioning.</p><h3>SSH Access - azadmin</h3><p>Secure Firewall is built on top of Linux as OS.</p><p>When a Linux Virtual Machine is provisioned in Azure, it comes with an ssh account that goes <strong>directly into Linux</strong>. This account is defined in VM definition itself. For this post, that username is <strong>azadmin</strong> and it is reference further in this document in terraform section.</p><p>This username supports both password authentication as well as the ssh public key. Password on the account is set to the one from Custom Data and public key is taken from Azure resource definition.</p><h2>Interacting with CDO</h2><p>Cisco Defense Orchestrator has a robust GUI interface for managing many different products. However, it lacks in programmability support.</p><p>Luckily, the product is built as API-first. That means that as we work in the GUI using a web browser, it interacts with CDO backend using well structured REST APIs.</p><p>We can easily reverse engineer those APIs using developer tools available in most browsers.</p><p>The template included in this post includes ansible playbooks that utilize the CDO REST APIs to fully automate adding of the firewall cluster into CDO.</p><p>There’s also a section in the document on adding the cluster to CDO manually through the web GUI.</p><h2>Ansible Playbook</h2><p><strong>Note: </strong>in order for Azure Load Balancer Health Probes to succeed, a default route is needed on the <strong>data</strong> interface. The playbook does not add this route. See the CDO section further in this document on steps to manually add this route</p><p>Once the firewalls are provisioned by Terraform, cd-onboard.yml is executed on the management host.</p><h3>Inventory</h3><p><strong>ansible-inv.yml</strong> file is generated dynamically by terraform based on <strong>ansible-inv.tftpl</strong> template</p><p>This is an example of a generated file.</p><p>The inventory is broken into two sections.</p><p>The top section defines cdo-related values. <strong>acp</strong> variable reference to the name of the Access Policy in FMC that will be applied to the newly added devices</p><p>The second section defines the clusters to be added to CDO. Only one of the cluster members needs to be added to CDO. Terraform template will populate it with the first firewall. It is quite possible that the first firewall does not become the <strong>Control</strong> node. However, the cluster can still be added using a <strong>Data</strong> node.</p><pre class="wp-block-code has-small-font-size"><code>all:
+  hosts:
+    cdo:
+      ansible_network_os: eos
+      token: eyJhbGciOiJSUzI1_LyPRNfgdUJXTiKzRAaZqg
+      base_url: https://www.defenseorchestrator.com
+      acp: AZ-Cluster
+      tier: FTDv30
+      licenses: BASE,THREAT,URLFilter,MALWARE
+      
+  children:
+    clusters:
+      hosts:
+        ftd-cluster-1:
+          hosts:
+            - 10.100.1.4
+
+      vars:
+        ansible_network_os: ios
+        ansible_user: admin
+        ansible_password: Cisco123!
+        ssh_options: -o ConnectTimeout=5 -o ConnectionAttempts=1 -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null
+</code></pre><h3>Playbook components</h3><p>Note that the playbook is executed on <strong>cdo</strong> host only. We use <strong>hostvar</strong> variable to lookup cluster information from the inventory.</p><p>Many of the tasks in the playbook were reverse engineered using Developer Tools in Chrome.</p><p>At the top, we define an <strong>anchor</strong> variable with HTTP parameters to reuse them in other tasks.</p><h4>General</h4><pre class="wp-block-code has-small-font-size"><code>- hosts: cdo
+  connection: httpapi
+  gather_facts: False
+  vars:
+    http_headers: &amp;uri_options
+      timeout: 15
+      headers:
+        Accept: "application/json"
+        Content-Type: "application/json"
+        Authorization: "Bearer {{token}}"  </code></pre><h4>Validation</h4><p>Here we ensure that the cluster name supplied via CLI is included in the inventory</p><pre class="wp-block-code has-small-font-size"><code>    - name: Check if cluster_name was supplied
+      fail:
+        msg: cluster_name var must be supplied. Eg. --extra-vars='cluster_name=ftd_cluster'
+      when: cluster_name is not defined
+    
+    - name: Check if cluster is in inventory
+      fail:
+        msg: "Cluster {{cluster_name}} is not found in inventory"
+      when: cluster_name not in hostvars</code></pre><h4>cdFMC Information</h4><pre class="wp-block-code has-small-font-size"><code>    - name: Get UID of cdFMC
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/targets/devices?q=deviceType:FMCE"
+        &lt;&lt;: *uri_options
+      register: fmc_uid
+      
+    - name: Get FMC Domain UID
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/device/{{fmc_uid.json.0.uid}}/specific-device"
+        &lt;&lt;: *uri_options
+      register: domain_uid</code></pre><h4>Find ID of Access Policy</h4><p>Note that we’re not using the anchor variable here because we need an additional <strong>fmc-hostname</strong> header.</p><pre class="wp-block-code has-small-font-size"><code>    - name: Get Access Policies
+      uri: 
+        url: "{{base_url}}/fmc/api/fmc_config/v1/domain/{{domain_uid.json.domainUid}}/policy/accesspolicies?limit=1000"
+        timeout: 15
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+          Authorization: "Bearer {{token}}"
+          fmc-hostname: "{{fmc_uid.json.0.host}}"
+      register: acp_list
+
+    - name: Find matching policy
+      set_fact:
+        acp_id: "{{item.id}}"
+      loop: "{{acp_list.json['items']}}"
+      loop_control:
+        label: "{{item.name}}/{{item.id}}"
+      when: item.name == acp
+    
+    - name: Stop if ACP is not found
+      meta: end_play
+      when: acp_id is not defined</code></pre><h4>Add FTD Device to CDO and set it to Pending</h4><pre class="wp-block-code has-small-font-size"><code>    - name: Add Device to CDO
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/targets/devices"
+        timeout: 15
+        method: POST
+        body_format: json
+        body:
+          associatedDeviceUid: "{{fmc_uid.json.0.uid}}"
+          deviceType: FTDC
+          metadata:
+            accessPolicyName: "{{acp}}"
+            accessPolicyUuid: "{{acp_id}}"
+            license_caps: "{{licenses}}"
+            performanceTier: "{{tier}}"
+          model: false
+          name: "{{cluster_name}}"
+          state: NEW
+          type: devices
+        &lt;&lt;: *uri_options
+      register: cdo_device
+    
+    - name: Get specific-device
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/device/{{cdo_device.json.uid}}/specific-device"
+        &lt;&lt;: *uri_options
+      register: specific_device
+    
+    - name: Initiate Onboarding
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/firepower/ftds/{{specific_device.json.uid}}"
+        method: PUT
+        body_format: json
+        body:
+          queueTriggerState: INITIATE_FTDC_ONBOARDING
+        &lt;&lt;: *uri_options</code></pre><h4>Get Onboarding Command and Send it to FTD</h4><p>The SSH task will continue retrying every 30 seconds until it’s able to SSH into the FTD and get a <strong>success</strong> response from <strong>config manager</strong> add command.</p><p>Note that we're using <strong>sshpass</strong> command to login to the firewall with a password.</p><p><strong>timeout</strong> command is used to kill the <strong>sshpass</strong> command in case it gets stuck</p><pre class="wp-block-code has-small-font-size"><code>    - name: Get onboarding command
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/targets/devices/{{cdo_device.json.uid}}"
+        &lt;&lt;: *uri_options
+      register: cli_command
+
+    - name: Print command
+      debug:
+        msg: "{{cli_command.json.metadata.generatedCommand}}"
+    
+    - name: Send config manager command
+      connection: local
+      command: "timeout 30 sshpass -p {{hostvars[cluster_name].ansible_password}} ssh {{hostvars[cluster_name].ssh_options}} {{hostvars[cluster_name].ansible_user}}@{{item}} {{cli_command.json.metadata.generatedCommand}}"
+      register: manager
+      retries: 50
+      delay: 30
+      until: '"success" in manager.stdout'
+      loop: "{{hostvars[cluster_name].hosts}}"</code></pre><h4>Initiate Onboarding and Wait for Completion</h4><p>Here, we trigger the onboarding process and wait for the device to reach <strong>Online</strong> status.</p><p>Notice that we send the onboarding command to the firewall before we initiate the onboarding process in CDO. The firewall continually tries to reach out to CDO to register, so it is ok to perform this step after the SSH command finally succeeds.</p><p>Another important point is the onboarding process only runs for a few minutes, so it is crucial that the <strong>config manager add</strong> command is executed in this short onboarding window. That is another reason that we make sure that the SSH command is successful before we put CDO into onboarding mode.</p><pre class="wp-block-code has-small-font-size"><code>    - name: Initiate Registration
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/firepower/ftds/{{specific_device.json.uid}}"
+        method: PUT
+        body_format: json
+        body:
+          queueTriggerState: INITIATE_FTDC_REGISTER
+        &lt;&lt;: *uri_options
+
+    - name: Wait for registration completion
+      uri:
+        url: "{{base_url}}/aegis/rest/v1/services/targets/devices/{{cdo_device.json.uid}}"
+        &lt;&lt;: *uri_options
+      retries: 50
+      delay: 30
+      register: device_state
+      until: device_state.json.connectivityState == 1</code></pre><h2>Terraform Resources</h2><p>The template is broken up into several files by function. All of the files contain comments describing the purpose of each resources. In this post, I will call out specific resources.</p><h3>variable.tf</h3><p>Here are important variables that need to be set:</p><ul><li><strong>fw_zones</strong> defines how many zones the firewall cluster is deployed to. Note that not all Azure regions have zones. Those that do have 3 zones.</li><li><strong>fw_per_zone</strong> defines how many Secure Firewalls are deployed to each zone</li><li><strong>cluster_prefix</strong> is prepended to the name of the firewall cluster</li><li><strong>www_zones</strong> defines how many zones the test web servers are deployed to</li><li><strong>www_per_zone</strong> defines how many web servers are deployed in each zone</li><li><strong>ssh_sources</strong> defines the public IP address where SSH connections to the bastion/management host will initiate from. This variable is used in provisioning the security group.</li><li><strong>ssh_file</strong> defines the location of the ssh private key that will be uploaded to the bastion host to ssh to the firewalls</li><li><strong>ssh_key</strong> is the name of the ssh key in AWS that will be used for the firewall EC2 instances. It must match the private key above</li><li><strong>cdo_token</strong> holds the value of the API token from CDO</li><li><strong>cluster_prefix</strong> is used for naming of the clusters. This name will be prepended with a number for each AZ. Eg. ftd-cluster-1, ftd-cluster-2, etc</li><li><strong>acp_policy</strong> defines the access policy for these clusters in cdFMC</li></ul><h3>rg.tf</h3><p>This file defines the parent Resource Group for all resources as well as a Storage Account that's required to access console ports of the Firewalls</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_resource_group" "gwlb" {
+  name     = "gwlb-rg"
+  location = var.location
+}
+
+resource "azurerm_storage_account" "diag" {
+  name                     = "gwlbdiag"
+  resource_group_name      = azurerm_resource_group.gwlb.name
+  location                 = azurerm_resource_group.gwlb.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}</code></pre><h3>network.tf</h3><p>In this file, we define various network resources</p><p>Firewall VNET has 10.100.0.0/16 CIDR and WWW has 10.1.0.0/16.</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_virtual_network" "gwlb" {
+  name                = "gwlb-net"
+  address_space       = ["10.100.0.0/16"]
+  resource_group_name = azurerm_resource_group.gwlb.name
+  location            = azurerm_resource_group.gwlb.location
+}
+
+resource "azurerm_virtual_network" "www" {
+  name                = "www-net"
+  address_space       = ["10.1.0.0/16"]
+  resource_group_name = azurerm_resource_group.gwlb.name
+  location            = azurerm_resource_group.gwlb.location
+}</code></pre><p>Various subnets are created. The names of the subnets are self-explainatory.</p><p>Subnet addresses are automatically calculated based on VNET CIDR</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_subnet" "fw_management" {
+  name                 = "fw-management"
+  resource_group_name  = azurerm_resource_group.gwlb.name
+  virtual_network_name = azurerm_virtual_network.gwlb.name
+  address_prefixes     = [cidrsubnet(azurerm_virtual_network.gwlb.address_space[0], 8, 1)]
+}
+
+resource "azurerm_subnet" "fw_data" {
+  name                 = "fw-data"
+  resource_group_name  = azurerm_resource_group.gwlb.name
+  virtual_network_name = azurerm_virtual_network.gwlb.name
+  address_prefixes     = [cidrsubnet(azurerm_virtual_network.gwlb.address_space[0], 8, 2)]
+}
+
+resource "azurerm_subnet" "fw_ccl" {
+  name                 = "fw-ccl"
+  resource_group_name  = azurerm_resource_group.gwlb.name
+  virtual_network_name = azurerm_virtual_network.gwlb.name
+  address_prefixes     = [cidrsubnet(azurerm_virtual_network.gwlb.address_space[0], 8, 3)]
+}
+
+resource "azurerm_subnet" "www" {
+  name                 = "www-subnet"
+  resource_group_name  = azurerm_resource_group.gwlb.name
+  virtual_network_name = azurerm_virtual_network.www.name
+  address_prefixes     = [cidrsubnet(azurerm_virtual_network.www.address_space[0], 8, 1)]
+}</code></pre><p>We define a few Network Security Groups. Since the firewalls are in an isolated VNET, we allow full access for that NSG.</p><p>Contents of the management NSG are generated using <strong>dynamic</strong> component of terraform using <strong>ssh_sources</strong> variable</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_network_security_group" "fw" {
+  name                = "fw-nsg"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  security_rule {
+    name                       = "All-Inbound"
+    priority                   = 1001
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "All-Outbound"
+    priority                   = 1001
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "www" {
+  name                = "www-nsg"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  security_rule {
+    name                       = "HTTP"
+    priority                   = 1001
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+resource "azurerm_network_security_group" "mgm" {
+  name                = "mgm-nsg"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  dynamic "security_rule" {
+    for_each = { for s in range(length(var.ssh_sources)) : tostring(1001 + s) =&gt; var.ssh_sources[s] }
+    content {
+      name                       = "SSH_${security_rule.key}"
+      priority                   = security_rule.key
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = security_rule.value
+      destination_address_prefix = "*"
+    }
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "www" {
+  subnet_id                 = azurerm_subnet.www.id
+  network_security_group_id = azurerm_network_security_group.www.id
+}</code></pre><h3>www.tf</h3><p>This file deploys test ubuntu web servers.</p><p>We use <strong>user_data</strong> argument to feed a simple web page into each web server to display which number it is. This allows us to monitor which of the servers our browser is routed to.</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_network_interface" "www" {
+  count               = var.www_zones * var.www_per_zone
+  name                = "www-nic-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "www-nic-ip-${count.index + 1}"
+    subnet_id                     = azurerm_subnet.www.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "www" {
+  count                           = var.www_zones * var.www_per_zone
+  name                            = "www-${count.index + 1}"
+  computer_name                   = "www-${count.index + 1}"
+  location                        = azurerm_resource_group.gwlb.location
+  zone                            = tostring(floor(count.index / var.www_per_zone) + 1)
+  resource_group_name             = azurerm_resource_group.gwlb.name
+  network_interface_ids           = [azurerm_network_interface.www[count.index].id]
+  size                            = "Standard_B1s"
+  admin_username                  = "azadmin"
+  admin_password                  = "Cisco123!"
+  disable_password_authentication = false
+
+  user_data = base64encode(&lt;&lt;-EOT
+    #!/bin/bash
+    apt update
+    apt upgrade
+    apt install -y apache2
+    echo "&lt;h1&gt;www-${count.index + 1}&lt;/h1&gt;" &gt;/var/www/html/index.html
+  EOT
+  )
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy-daily"
+    sku       = "22_04-daily-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    name                 = "www-os-disk-${count.index + 1}"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  admin_ssh_key {
+    username   = "azadmin"
+    public_key = file("~/.ssh/aws-ssh-1.pub")
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.diag.primary_blob_endpoint
+  }
+}</code></pre><h3>wwwlb.tf</h3><p>This file defines resources to create the external load balancer for the test web servers.</p><p>Notable argument in this file is <strong>gateway_load_balancer_frontend_ip_configuration_id</strong>. This establishes a service chain to the gateway load balancer with the firewalls behind it.</p><p>We're defining explicit outbound rules to ensure that the web servers are able to get out to the Internet. Without these rules, outbound connectivity was intermittent.</p><p>A DNS record for www.az.ciscodemo.net is also created in this file</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_public_ip" "www_lb" {
+  name                = "www-ip"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_public_ip" "www_outbound" {
+  name                = "www-outbound"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_lb" "www" {
+  name                = "www-lb"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+  sku                 = "Standard"
+
+  frontend_ip_configuration {
+    name                 = "www-lb-ip"
+    public_ip_address_id = azurerm_public_ip.www_lb.id
+    gateway_load_balancer_frontend_ip_configuration_id = azurerm_lb.fw.frontend_ip_configuration[0].id
+  }
+
+  frontend_ip_configuration {
+    name                 = "www-outbound"
+    public_ip_address_id = azurerm_public_ip.www_outbound.id
+  }
+}
+
+resource "azurerm_lb_backend_address_pool" "www" {
+  loadbalancer_id = azurerm_lb.www.id
+  name            = "www-servers"
+}
+
+resource "azurerm_lb_backend_address_pool_address" "www" {
+  count                   = var.www_zones * var.www_per_zone
+  name                    = "www-lb-pool-${count.index + 1}"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.www.id
+  virtual_network_id      = azurerm_virtual_network.www.id
+  ip_address              = azurerm_network_interface.www[count.index].ip_configuration[0].private_ip_address
+}
+
+resource "azurerm_lb_probe" "http_probe" {
+  loadbalancer_id = azurerm_lb.www.id
+  name            = "http-probe"
+  protocol        = "Http"
+  request_path    = "/"
+  port            = 80
+}
+
+resource "azurerm_lb_rule" "www" {
+  loadbalancer_id                = azurerm_lb.www.id
+  name                           = "HTTP"
+  protocol                       = "Tcp"
+  frontend_port                  = 80
+  backend_port                   = 80
+  frontend_ip_configuration_name = "www-lb-ip"
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.www.id]
+  probe_id                       = azurerm_lb_probe.http_probe.id
+  disable_outbound_snat          = true
+}
+
+resource "azurerm_lb_outbound_rule" "www" {
+  name                     = "www-outbound"
+  loadbalancer_id          = azurerm_lb.www.id
+  protocol                 = "All"
+  backend_address_pool_id  = azurerm_lb_backend_address_pool.www.id
+  allocated_outbound_ports = 512
+
+  frontend_ip_configuration {
+    name = "www-outbound"
+  }
+}
+
+resource "azurerm_dns_a_record" "www" {
+  name                = "www"
+  zone_name           = "az.ciscodemo.net"
+  resource_group_name = "dns"
+  ttl                 = 5
+  records             = [azurerm_public_ip.www_lb.ip_address]
+}
+</code></pre><h3>ftd.tf</h3><p>This file defines resources related to Secure Firewall.</p><p><strong>CclSubnetRange</strong> is automatically calculated based on the subnet address for the CCL network</p><p>Note that the firewall interfaces must be listed in the <strong>specific order</strong>: management, diagnostic, data and ccl.</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_network_interface" "fw_management" {
+  count               = var.fw_zones * var.fw_per_zone
+  name                = "fw-management-nic-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "fw-management-nic-ip-${count.index + 1}"
+    subnet_id                     = azurerm_subnet.fw_management.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_network_interface" "fw_diagnostic" {
+  count               = var.fw_zones * var.fw_per_zone
+  name                = "fw-diagnostic-nic-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "fw-diagnostic-nic-ip-${count.index + 1}"
+    subnet_id                     = azurerm_subnet.fw_management.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_network_interface" "fw_data" {
+  count               = var.fw_zones * var.fw_per_zone
+  name                = "fw-data-nic-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "fw-data-nic-ip-${count.index + 1}"
+    subnet_id                     = azurerm_subnet.fw_data.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_network_interface" "fw_ccl" {
+  count               = var.fw_zones * var.fw_per_zone
+  name                = "fw-ccl-nic-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "fw-cl-nic-ip-${count.index + 1}"
+    subnet_id                     = azurerm_subnet.fw_ccl.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "ftd" {
+  count               = var.fw_zones * var.fw_per_zone
+  name                = "ftd-${count.index + 1}"
+  computer_name       = "ftd-${count.index + 1}"
+  location            = azurerm_resource_group.gwlb.location
+  zone                = tostring(floor(count.index / var.fw_per_zone) + 1)
+  resource_group_name = azurerm_resource_group.gwlb.name
+  network_interface_ids = [
+    azurerm_network_interface.fw_management[count.index].id,
+    azurerm_network_interface.fw_diagnostic[count.index].id,
+    azurerm_network_interface.fw_data[count.index].id,
+    azurerm_network_interface.fw_ccl[count.index].id
+  ]
+  size                            = "Standard_D3_v2"
+  admin_username                  = "azadmin"
+  admin_password                  = "Cisco123!"
+  disable_password_authentication = false
+
+  custom_data = base64encode(jsonencode(
+    {
+      "AdminPassword": "Cisco123!",
+      "Hostname": "ftd-${count.index + 1}",
+      "FirewallMode": "Routed",
+      "ManageLocally": "No",
+      "Cluster": {
+        "CclSubnetRange": "${cidrhost(azurerm_subnet.fw_ccl.address_prefixes[0],1)} ${cidrhost(azurerm_subnet.fw_ccl.address_prefixes[0],32)}",
+        "ClusterGroupName": "${var.cluster_prefix}-1",
+        "HealthProbePort": "12345",
+        "GatewayLoadBalancerIP": "${azurerm_lb.fw.frontend_ip_configuration[0].private_ip_address}",
+        "EncapsulationType": "vxlan",
+        "InternalPort": "10800",
+        "ExternalPort": "10801",
+        "InternalSegId": "800",
+        "ExternalSegId": "801"
+      }
+    }
+  )
+  )
+
+  source_image_reference {
+    publisher = "cisco"
+    offer     = "cisco-ftdv"
+    sku       = "ftdv-azure-byol"
+    version   = "73.0.51"
+  }
+
+  plan {
+    publisher = "cisco"
+    product = "cisco-ftdv"
+    name = "ftdv-azure-byol"
+  }
+
+  os_disk {
+    name                 = "fw-os-disk-${count.index + 1}"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  admin_ssh_key {
+    username   = "azadmin"
+    public_key = file("~/.ssh/aws-ssh-1.pub")
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.diag.primary_blob_endpoint
+  }
+}</code></pre><h3>gwlb.tf</h3><p>This file defines resources to create gateway load balancer with the firewalls behind it.</p><p>Note that the probe tcp port and tunnel ports and identifiers must match the same parameters for the firewalls.</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_lb" "fw" {
+  name                = "fw-lb"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+  sku                 = "Gateway"
+
+  frontend_ip_configuration {
+    name                 = "fw-lb-ip"
+    subnet_id = azurerm_subnet.fw_data.id
+  }
+}
+
+resource "azurerm_lb_backend_address_pool" "fw" {
+  loadbalancer_id = azurerm_lb.fw.id
+  name            = "firewalls"
+  tunnel_interface {
+    identifier = 800
+    type = "Internal"
+    protocol = "VXLAN"
+    port = 10800
+  }
+
+  tunnel_interface {
+    identifier = 801
+    type = "External"
+    protocol = "VXLAN"
+    port = 10801
+  }
+}
+
+resource "azurerm_lb_backend_address_pool_address" "fw" {
+  count                   = var.fw_zones * var.fw_per_zone
+  name                    = "fw-lb-pool-${count.index + 1}"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.fw.id
+  virtual_network_id      = azurerm_virtual_network.gwlb.id
+  ip_address              = azurerm_network_interface.fw_data[count.index].ip_configuration[0].private_ip_address
+}
+
+resource "azurerm_lb_probe" "tcp_12345" {
+  loadbalancer_id = azurerm_lb.fw.id
+  name            = "tcp-12345"
+  protocol        = "Tcp"
+  port            = 12345
+}
+
+resource "azurerm_lb_rule" "gwlb" {
+  loadbalancer_id                = azurerm_lb.fw.id
+  name                           = "All-Traffic"
+  protocol = "All"
+  frontend_ip_configuration_name = "fw-lb-ip"
+  frontend_port = 0
+  backend_port = 0
+  load_distribution = "SourceIP"
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.fw.id]
+  probe_id                       = azurerm_lb_probe.tcp_12345.id
+}</code></pre><h3>mgm.tf</h3><p>This file defines a small ubuntu server used for us to gain access to the environment remotely via SSH.</p><pre class="wp-block-code has-small-font-size"><code>resource "azurerm_public_ip" "mgm" {
+  name                = "mgm-ip"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface_security_group_association" "mgm" {
+  network_interface_id      = azurerm_network_interface.mgm.id
+  network_security_group_id = azurerm_network_security_group.mgm.id
+}
+
+resource "azurerm_network_interface" "mgm" {
+  name                = "mgm-nic"
+  location            = azurerm_resource_group.gwlb.location
+  resource_group_name = azurerm_resource_group.gwlb.name
+
+  ip_configuration {
+    name                          = "mgm-nic-ip"
+    subnet_id                     = azurerm_subnet.fw_management.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.mgm.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "mgm" {
+  name                            = "fw-mgm"
+  location                        = azurerm_resource_group.gwlb.location
+  resource_group_name             = azurerm_resource_group.gwlb.name
+  network_interface_ids           = [azurerm_network_interface.mgm.id]
+  size                            = "Standard_B1s"
+  computer_name                   = "fw-mgm"
+  admin_username                  = "azadmin"
+  disable_password_authentication = true
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy-daily"
+    sku       = "22_04-daily-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    name                 = "mgm-os-disk"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  admin_ssh_key {
+    username   = "azadmin"
+    public_key = file("~/.ssh/aws-ssh-1.pub")
+  }
+}</code></pre><h3>ansible.tf</h3><p>This file generates the inventory file from <strong>ansible-inv.tftpl</strong> template</p><pre class="wp-block-code has-small-font-size"><code>resource "local_file" "ansible_inv" {
+  filename = "ansible-inv.yml"
+  content = templatefile("ansible-inv.tftpl", {
+    cdo_token  = var.cdo_token
+    acp_policy = var.acp_policy
+    cluster = "${var.cluster_prefix}-1"
+    password = var.admin_password
+    node = azurerm_network_interface.fw_management[0].ip_configuration[0].private_ip_address
+  })
+}</code></pre><p>We use a null resource to launch the ansible playbook. ansible-playbook is launched using <strong>remote-exec</strong> on the Ubuntu management host.</p><pre class="wp-block-code has-small-font-size"><code>resource "null_resource" "ftd_provision" {
+  connection {
+    type        = "ssh"
+    user        = "azadmin"
+    host        = azurerm_public_ip.mgm.ip_address
+    private_key = file("~/.ssh/aws-ssh-1.pem")
+    agent       = false
+  }
+  provisioner "file" {
+    source      = "${path.module}/ansible-inv.yml"
+    destination = "/home/azadmin/ansible-inv.yml"
+  }
+  provisioner "file" {
+    source      = "${path.module}/cdo-onboard.yml"
+    destination = "/home/azadmin/cdo-onboard.yml"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "ansible-playbook -i /home/azadmin/ansible-inv.yml /home/azadmin/cdo-onboard.yml --extra-vars='cluster_name=${var.cluster_prefix}-1'"
+    ]
+  }
+
+  depends_on = [
+    azurerm_linux_virtual_machine.ftd,
+    local_file.ansible_inv
+  ]
+}</code></pre><h2>Cisco Defense Orchestrator (CDO)</h2><p>CDO now comes with a full featured Firewall Management Center (FMC) called cloud-delivered FMC (cdFMC).</p><p>To access it, browse to <a href="https://www.defenseorchestrator.com/">https://www.defenseorchestrator.com/</a> and login with your CCO credentials.</p><p>To access cdFMC, click on Policies | FTD Policies</p><figure class="wp-block-image"><figure class="wp-image-389"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-2xl.png 1920w"></figure></figure><h3>Access Policy</h3><p>In order to onboard Thread Defense devices, we must have an <strong>Access Policy</strong>. cdFMC comes with a default policy or we can create a new policy.</p><figure class="wp-block-image"><figure class="wp-image-390"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-1-1024x175.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-1024x175-2xl.png 1920w"></figure></figure><figure class="wp-block-image size-full"><figure class="wp-image-447"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-2xl.png 1920w"></figure></figure><figure class="wp-block-image size-full"><figure class="wp-image-448"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-1.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-1-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-1-2xl.png 1920w"></figure></figure><h3>Adding Firewall Cluster</h3><p>Unlike traditional on-prem FMC, we add devices from the CDO GUI and not in cdFMC.</p><figure class="wp-block-image"><figure class="wp-image-394"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-4-1024x137.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x137-2xl.png 1920w"></figure></figure><figure class="wp-block-image"><figure class="wp-image-395"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-5.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-5-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-5-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-5-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-5-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-5-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-5-2xl.png 1920w"></figure></figure><figure class="wp-block-image"><figure class="wp-image-396"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-6-1024x235.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x235-2xl.png 1920w"></figure></figure><p>For the name, we will use the same name as the cluster config.</p><figure class="wp-block-image"><figure class="wp-image-397"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-7.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-7-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-2xl.png 1920w"></figure></figure><p>We pick the Access Control Policy we created earlier</p><figure class="wp-block-image size-full"><figure class="wp-image-449"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-2.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-2-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-2-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-2-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-2-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-2-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-2-2xl.png 1920w"></figure></figure><p>On the next screen, we select performance tier and the licensing options</p><figure class="wp-block-image"><figure class="wp-image-399"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-9.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-9-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-9-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-9-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-9-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-9-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-9-2xl.png 1920w"></figure></figure><p>On the next screen, we are given the command that we need to execute to add the cluster to CDO. It is <strong>crucial</strong> that you click Next on this screen before pasting this command in CLI.</p><figure class="wp-block-image"><figure class="wp-image-400"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-10.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-10-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-10-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-10-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-10-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-10-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-10-2xl.png 1920w"></figure></figure><p>We’re finally presented with the completion screen</p><figure class="wp-block-image"><figure class="wp-image-401"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-11.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-11-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-11-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-11-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-11-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-11-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-11-2xl.png 1920w"></figure></figure><p>Going back to CLI, we paste in the onboarding command</p><pre class="wp-block-code has-small-font-size"><code>&gt; configure manager add ***.app.us.cdo.cisco.com O5BJujeO0rQiqDzdRgFcgDaS3rY6a0A8 6oysb5geIYyw23mF9qIzWlcBXBgDoxdO ***.app.us.cdo.cisco.com
+Manager ***.app.us.cdo.cisco.com successfully configured.
+Please make note of reg_key as this will be required while adding Device in FMC.</code></pre><p>After 10 minutes or so, we can see the cluster fully onboarded in FMC GUI.</p><p>The errors shown above are due to the firewalls not receiving any data.</p><figure class="wp-block-image size-full"><figure class="wp-image-451"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-3.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-3-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-3-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-3-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-3-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-3-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-3-2xl.png 1920w"></figure></figure><h3>Default Route to Azure</h3><p>If we look at status of the firewalls in Load Balancer statistics in Azure portal, we can see that they're not responding to Health Probes.</p><figure class="wp-block-image size-large"><figure class="wp-image-452"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-4-1024x556.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-4-1024x556-2xl.png 1920w"></figure></figure><p>If we perform a capture on the <strong>vxlan_tunnel</strong> interface, we can see that the probes are coming from 168.63.129.16 address which Azure uses for many different services.</p><pre class="wp-block-code has-small-font-size"><code>ftd-2# capture health interface vxlan_tunnel real-time match tcp any any eq 12345
+
+Warning: using this option with a slow console connection may
+         result in an excessive amount of non-displayed packets
+         due to performance limitations.
+
+Use ctrl-c to terminate real-time capture
+
+
+   1: 15:00:59.877930       168.63.129.16.63627 &gt; 10.100.2.6.12345: S 288456937:288456937(0) win 64240 &lt;mss 1440,nop,wscale 8,nop,nop,sackOK&gt; 
+   2: 15:00:59.877960       168.63.129.16.63626 &gt; 10.100.2.6.12345: S 632867129:632867129(0) win 64240 &lt;mss 1440,nop,wscale 8,nop,nop,sackOK&gt; 
+   3: 15:01:03.881180       168.63.129.16.63626 &gt; 10.100.2.6.12345: S 632867129:632867129(0) win 64240 &lt;mss 1440,nop,wscale 8,nop,nop,sackOK&gt; </code></pre><p>We can fix this by adding a default gateway via the <strong>vxlan_tunnel</strong> interface.</p><figure class="wp-block-image size-large"><figure class="wp-image-454"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-6-1024x625.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-6-1024x625-2xl.png 1920w"></figure></figure><p>With the default gateway added, we can now see that the firewalls show successful probe results</p><figure class="wp-block-image size-full"><figure class="wp-image-456"><img loading="lazy" src="https://blogs.securityccie.net/media/posts/6/image-7.png" alt="" sizes="(max-width: 1920px) 100vw, 1920px" srcset="https://blogs.securityccie.net/media/posts/6/responsive/image-7-xs.png 640w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-sm.png 768w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-md.png 1024w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-lg.png 1366w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-xl.png 1600w, https://blogs.securityccie.net/media/posts/6/responsive/image-7-2xl.png 1920w"></figure></figure></div><footer class="content__footer"><div class="entry-wrapper"><p class="content__updated">This article was updated on October 1, 2026</p><div class="content__actions"><div class="content__share"><button class="btn--icon content__share-button js-content__share-button"><svg width="20" height="20" aria-hidden="true"><use xlink:href="https://blogs.securityccie.net/assets/svg/svg-map.svg#share"></use></svg> <span>Share It</span></button><div class="content__share-popup js-content__share-popup"></div></div></div><div class="content__bio bio"><div><h3 class="h4 bio__name"><a href="https://blogs.securityccie.net/authors/viktor-bobrov/" rel="author">Viktor Bobrov</a></h3></div></div></div><nav class="content__nav"><div class="wrapper"><div class="content__nav-inner"><div class="content__nav-prev"><a href="https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-aws.html" class="content__nav-link" rel="prev"><div><span>Previous</span> Deploying CDO-Managed FTDv Cluster in AWS</div></a></div><div class="content__nav-next"><a href="https://blogs.securityccie.net/asa-vpn-dns-load-balancing-with-saml.html" class="content__nav-link" rel="next"><div><span>Next</span> ASA VPN DNS Load Balancing with SAML</div></a></div></div></div></nav></footer></article><div class="content__related related"><div class="wrapper"><h2 class="h4 related__title">You should also read:</h2><article class="feed__item feed__item--centered"><div class="feed__content"><header><div class="feed__meta"><a href="https://blogs.securityccie.net/authors/viktor-bobrov/" class="feed__author">Viktor Bobrov</a> <time datetime="2023-03-06T21:26" class="feed__date">March 6, 2023</time></div><h3 class="feed__title"><a href="https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-aws.html">Deploying CDO-Managed FTDv Cluster in AWS</a></h3></header><p>Many companies are shifting their workloads to the cloud and it's important to deploy a level of segmentation to protect from Internet threats as well as Internal. Cisco has a next-generation firewall that has a perfect fit to handle this requirement. Starting with version 7.2,&hellip;</p><a href="https://blogs.securityccie.net/deploying-cdo-managed-ftdv-cluster-in-aws.html" class="readmore feed__readmore">Continue reading...</a></div></article></div></div></main><footer class="footer footer--glued"><div class="wrapper"><div class="footer__copyright">Powered by Publii</div><button id="backToTop" class="footer__bttop" aria-label="Back to top" title="Back to top"><svg width="20" height="20"><use xlink:href="https://blogs.securityccie.net/assets/svg/svg-map.svg#toparrow"/></svg></button></div></footer><script defer="defer" src="https://blogs.securityccie.net/assets/js/scripts.min.js?v&#x3D;dafec4f87fead6718cb125f0b0fc8441"></script><script>window.publiiThemeMenuConfig={mobileMenuMode:'sidebar',animationSpeed:300,submenuWidth: 'auto',doubleClickTime:500,mobileMenuExpandableSubmenus:true,relatedContainerForOverlayMenuSelector:'.top'};</script><script>var images = document.querySelectorAll('img[loading]');
+        for (var i = 0; i < images.length; i++) {
+            if (images[i].complete) {
+                images[i].classList.add('is-loaded');
+            } else {
+                images[i].addEventListener('load', function () {
+                    this.classList.add('is-loaded');
+                }, false);
+            }
+        }</script></body></html>

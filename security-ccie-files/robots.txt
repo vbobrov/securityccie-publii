@@ -1,0 +1,3 @@
+User-agent: *
+Disallow:
+Sitemap: https://blogs.securityccie.net/sitemap.xml
