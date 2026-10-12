@@ -157,12 +157,12 @@
     {
         "path": "404.html",
         "type": "file",
-        "md5": "fd3f0a3b38854df20b4635323d0fba1c"
+        "md5": "0e8ade23472d77649ec0805c829c27de"
     },
     {
         "path": "asa-vpn-dns-load-balancing-with-saml.html",
         "type": "file",
-        "md5": "99b6dc754d1abedd44564ef1147a7809"
+        "md5": "2c80d065b158d68e86d5fa5f6a7ca3cd"
     },
     {
         "path": "assets",
@@ -242,7 +242,7 @@
     {
         "path": "/authors/viktor-bobrov/index.html",
         "type": "file",
-        "md5": "d680396980aca60bc786408159c07b8c"
+        "md5": "795808914e82e2d7fc4f07c9bfc0f456"
     },
     {
         "path": "authors/viktor-bobrov/page",
@@ -257,37 +257,37 @@
     {
         "path": "/authors/viktor-bobrov/page/2/index.html",
         "type": "file",
-        "md5": "ed3cd0e5404387ebf85353f400cca589"
+        "md5": "f04a49dc8e8de3db05aeb6e1f35d506f"
     },
     {
         "path": "capture-wifi-credentials-with-gtc-downgrade.html",
         "type": "file",
-        "md5": "371118b58da72b9da1731a15544ddd85"
+        "md5": "8cfc35fb6a7e75e35a3e47439f724e56"
     },
     {
         "path": "deploying-cdo-managed-ftdv-cluster-in-aws.html",
         "type": "file",
-        "md5": "2b145718a928f33ea6624d872dadf97a"
+        "md5": "9194645ea81ce95d1e7b50db52a0f4e9"
     },
     {
         "path": "deploying-cdo-managed-ftdv-cluster-in-azure.html",
         "type": "file",
-        "md5": "0447641cd1b97b93cf34916b7577a792"
+        "md5": "d71975ffb30ca71d65deef6d22f966ab"
     },
     {
         "path": "index.html",
         "type": "file",
-        "md5": "5c761647bf5492fdc62bbe4fa1e05a29"
+        "md5": "6cc326fdac2e050b53df3d41a2a56043"
     },
     {
         "path": "intune-for-ise-engineer.html",
         "type": "file",
-        "md5": "79c4df7d7473644e16c2059089c8f0fc"
+        "md5": "b7fe997f17dd40febd4b8172361cef16"
     },
     {
         "path": "ise-and-f5-aws-deployment-with-terraform-and-ansible.html",
         "type": "file",
-        "md5": "cd51bbca9d7b537274f99732439de1a6"
+        "md5": "1cc1ebe2ef1467859cba89675544d844"
     },
     {
         "path": "media",
@@ -9175,9 +9175,54 @@
         "md5": "0ad7029e066cf7e5097fba86fa1e02bc"
     },
     {
+        "path": "media/website",
+        "type": "directory",
+        "md5": false
+    },
+    {
+        "path": "/media/website/ccie.jpg",
+        "type": "file",
+        "md5": "9c0ee5840201a961c9e90c524d2e3f40"
+    },
+    {
+        "path": "media/website/responsive",
+        "type": "directory",
+        "md5": false
+    },
+    {
+        "path": "/media/website/responsive/ccie-2xl.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
+        "path": "/media/website/responsive/ccie-lg.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
+        "path": "/media/website/responsive/ccie-md.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
+        "path": "/media/website/responsive/ccie-sm.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
+        "path": "/media/website/responsive/ccie-xl.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
+        "path": "/media/website/responsive/ccie-xs.jpg",
+        "type": "file",
+        "md5": "bbd5a094cf58e135a7472f95084a8500"
+    },
+    {
         "path": "netscaler-for-ise-deployments.html",
         "type": "file",
-        "md5": "b785aa9671b90358118ee30c9bfeb5d8"
+        "md5": "9a5cc4d9135d87c08f04c93e7a961782"
     },
     {
         "path": "robots.txt",
@@ -9197,7 +9242,7 @@
     {
         "path": "/tags/ansible/index.html",
         "type": "file",
-        "md5": "93fee5ee6d5022244f4411d718997c62"
+        "md5": "471da79ee4e238e2e054b5d5f5c7138a"
     },
     {
         "path": "tags/anyconnect",
@@ -9207,7 +9252,7 @@
     {
         "path": "/tags/anyconnect/index.html",
         "type": "file",
-        "md5": "251dafb428b398ca0d950676f993d921"
+        "md5": "ec3781efbcae2db80fa05ad076792a89"
     },
     {
         "path": "tags/asa",
@@ -9217,7 +9262,7 @@
     {
         "path": "/tags/asa/index.html",
         "type": "file",
-        "md5": "103521fd6a9b18bb1540ed503cb78408"
+        "md5": "a323233a4f6edaf2db5c780a78a89274"
     },
     {
         "path": "tags/attack",
@@ -9227,7 +9272,7 @@
     {
         "path": "/tags/attack/index.html",
         "type": "file",
-        "md5": "fa74e0301b85ff2b365679c8b3a9f2c6"
+        "md5": "d633b4fecca0721a6f301cdb4e83cc6d"
     },
     {
         "path": "tags/aws",
@@ -9237,7 +9282,7 @@
     {
         "path": "/tags/aws/index.html",
         "type": "file",
-        "md5": "1e9c216e03241f23e2fe1501ab642825"
+        "md5": "63401e3b68cf624ddf7812d91a587ded"
     },
     {
         "path": "tags/azuread",
@@ -9247,7 +9292,7 @@
     {
         "path": "/tags/azuread/index.html",
         "type": "file",
-        "md5": "afe62ccb7bd9fc4d9c6a6f017fe53346"
+        "md5": "9bfba97e8023efccd97d172b4dfb88af"
     },
     {
         "path": "tags/cisco",
@@ -9257,7 +9302,7 @@
     {
         "path": "/tags/cisco/index.html",
         "type": "file",
-        "md5": "b28846150ae4f122604bb8523ab87094"
+        "md5": "645634875e5b4406498597ca8190ce97"
     },
     {
         "path": "tags/credentials",
@@ -9267,7 +9312,7 @@
     {
         "path": "/tags/credentials/index.html",
         "type": "file",
-        "md5": "0a2cccc8cc652c46f2399062196be25c"
+        "md5": "e4a0b13dfe1d879284fed0a8dd6fb990"
     },
     {
         "path": "tags/f5",
@@ -9277,7 +9322,7 @@
     {
         "path": "/tags/f5/index.html",
         "type": "file",
-        "md5": "28f2cff334a6abd0db9530acd5db9d7c"
+        "md5": "fe774d8bc938346b0ea2299345fa8c00"
     },
     {
         "path": "tags/hacking",
@@ -9287,12 +9332,12 @@
     {
         "path": "/tags/hacking/index.html",
         "type": "file",
-        "md5": "b21b8c9f8599134a81b7f10c4b98b48c"
+        "md5": "775513ca481e13f14e7b2916752694e4"
     },
     {
         "path": "/tags/index.html",
         "type": "file",
-        "md5": "a46cefd38733cb47ef68c054bcbf9d71"
+        "md5": "898213a578b9e8e3a24224be77d8d7ea"
     },
     {
         "path": "tags/intune",
@@ -9302,7 +9347,7 @@
     {
         "path": "/tags/intune/index.html",
         "type": "file",
-        "md5": "05fcfe343ca5032a8b76555ea2b40687"
+        "md5": "61368dd46a96d6d2e38e21aa511174ee"
     },
     {
         "path": "tags/ise",
@@ -9312,7 +9357,7 @@
     {
         "path": "/tags/ise/index.html",
         "type": "file",
-        "md5": "0ec506c552aa1303303878077b83942e"
+        "md5": "3151116a6c5fee7ee97324a02040f4fa"
     },
     {
         "path": "tags/linux",
@@ -9322,7 +9367,7 @@
     {
         "path": "/tags/linux/index.html",
         "type": "file",
-        "md5": "57bfb46abac118ac0722f7cb9e6afc34"
+        "md5": "cab1053a49445294e8cf7738010b6722"
     },
     {
         "path": "tags/mdm",
@@ -9332,7 +9377,7 @@
     {
         "path": "/tags/mdm/index.html",
         "type": "file",
-        "md5": "d8aaa4dc5885528c092509d69a80ad05"
+        "md5": "b767379912ebeaea09c2d97d3ec3b6a9"
     },
     {
         "path": "tags/radius",
@@ -9342,7 +9387,7 @@
     {
         "path": "/tags/radius/index.html",
         "type": "file",
-        "md5": "94eec77d745f7f532f0127f494737739"
+        "md5": "6c73a8cc6be34393fb04152fdc1ba79b"
     },
     {
         "path": "tags/remotevpn",
@@ -9352,7 +9397,7 @@
     {
         "path": "/tags/remotevpn/index.html",
         "type": "file",
-        "md5": "30921742fad721d0f3f6dc2a8938b735"
+        "md5": "c6bb432466ecd9a19c162fac2f883de1"
     },
     {
         "path": "tags/secureclient",
@@ -9362,7 +9407,7 @@
     {
         "path": "/tags/secureclient/index.html",
         "type": "file",
-        "md5": "bf485597e3fa0fb11d206a80c9a6b649"
+        "md5": "bc9a1033d0952aa2fe3478c9e74bc51c"
     },
     {
         "path": "tags/terraform",
@@ -9372,7 +9417,7 @@
     {
         "path": "/tags/terraform/index.html",
         "type": "file",
-        "md5": "fe31ace7f9861101167411c5ce7c730a"
+        "md5": "919050c11464d725ced8821909383f75"
     },
     {
         "path": "tags/vpn",
@@ -9382,7 +9427,7 @@
     {
         "path": "/tags/vpn/index.html",
         "type": "file",
-        "md5": "14b935f9ab7697608a7e3d588a701461"
+        "md5": "5b5fde9d92924b3868723fce2821400a"
     },
     {
         "path": "tags/wifi",
@@ -9392,11 +9437,11 @@
     {
         "path": "/tags/wifi/index.html",
         "type": "file",
-        "md5": "20c104a0af6c823f69d9d19639fc1b03"
+        "md5": "d8a31bcaffc56ff50fcc403c24d5ca48"
     },
     {
         "path": "testing-radius-from-cli.html",
         "type": "file",
-        "md5": "f166435f92751d3361a8484b2ab05097"
+        "md5": "42061c8930d5495961f7b3882753a10b"
     }
 ]
